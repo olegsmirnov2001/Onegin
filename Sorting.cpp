@@ -32,9 +32,6 @@ void Main () {
     void* buf = NULL;
     char** lines = getLines (&numLines, &buf, "src\\OneginText.txt");
 
-    for (int i = 0; i < numLines; i++)
-        printf ("<%s>\n", lines [i]);
-
     deleteBuf (buf);
     deleteLines (lines);
 }
@@ -68,11 +65,7 @@ char** getLines (int * numLines, void* * p_buf, const char* fileName) {
 void setLines (char** lines, int numLines, char* text, int numSymbols) {
     char* curr = text;
 
-    printf ("text:\n<%s>\n", text);
-
     for (int i = 0; i < numLines; i++) {
-        printf ("loop %d.", i);
-
         assert (0 <= i && i < numLines);
         assert (text <= curr && curr < text + sizeof(char) * numSymbols);
 
@@ -82,16 +75,12 @@ void setLines (char** lines, int numLines, char* text, int numSymbols) {
             while (*curr != '\n') {
                 assert (text <= curr && curr < text + sizeof(char) * numSymbols);
 
-                printf ("               symbol<%c>, adr<%p>\n", *curr, curr);
-
                 curr++;
             }
 
-            curr = 0;
+            *curr = 0;
             curr++;
         }
-
-        printf ("line %d:<%s>\n", i, lines [i]);
     }
 }
 
