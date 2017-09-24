@@ -8,8 +8,9 @@
 #include <assert.h>
 
 void Main ();
-void deleteBuf (void* buf);
+void deleteBuf (void* & buf);
 void deleteLines (char** lines);
+void printLines (char** lines, int numLines);
 char** getLines (int * numLines, void* * p_buf, const char* fileName);
 void setLines (char** lines, int numLines, char* text, int numSymbols);
 void* getBuf (long int * numSymbols, const char* fileName);
@@ -20,10 +21,17 @@ int main () {
     try {
         Main ();
     }
-    catch (std::exception& e) {
-        printf ("Exception: %s\n", e.what());
-        
-    А другие экспепшены он не ловит, муаххахаха    
+    catch (const std::exception& e) {
+        printf ("Exception <std::exception>: %s\n", e.what());
+    }
+    catch (const char* e) {
+        printf ("Exception <const char*>: %s\n", e);
+    }
+    catch (const int e) {
+        printf ("Exception <int>: %d\n", e);
+    }
+    catch (...) {
+        printf ("Exception <...>\n");
     }
 
     return 0;
@@ -32,24 +40,34 @@ int main () {
 void Main () {
     int numLines = 0;
     void* buf = NULL;
-    char** lines = getLines (&numLines, &buf, "src\\OneginText.txt");
+    char** lines = getLines (&numLines, &buf, "res\\OneginText.txt");
 
-    #pragma meow (cat_wants_a_function)
-    for (int i = 0; i < numLines; i++)
-        printf ("<%s>\n", lines [i]);
+    //sortLines (lines, numLines); // What? Why the main part of the project is commented?
+                                   //"This is the question", as Shakespeare have written...
+
+    printLines (lines, numLines);
 
     deleteBuf (buf);
     deleteLines (lines);
 }
 
-void deleteBuf (void* buf) {
-    // ? Maybe it's marasm ? Почему бы и не. М.б. ты логгируешь. Или еще что-то. Я советую void*& buf, чтобы изнутри можно былобызанулить (воднослово беспробелов).
-    Шаблончики только потребуются.
+void deleteBuf (void* & buf) {
     free (buf);
+    buf = NULL;
 }
 
 void deleteLines (char** lines) {
     delete [] lines;
+}
+
+void printLines (char** lines, int numLines) {
+    printf ("======= LINES ========\n");
+
+    for (int i = 0; i < numLines; i++) {
+        printf ("<%s>\n", lines [i]);
+    }
+
+    printf ("======================\n");
 }
 
 char** getLines (int * numLines, void* * p_buf, const char* fileName) {
@@ -61,22 +79,17 @@ char** getLines (int * numLines, void* * p_buf, const char* fileName) {
 
     *numLines = getNumLines ((char*) buf, numSymbols);
 
-    char** lines = (char**) new char* [*numLines] { meow };
-    memset (lines, 0, sizeof(char*) * *numLines); См. http://en.cppreference.com/w/cpp/language/zero_initialization
+    char** lines = (char**) new char* [*numLines] ();
 
     setLines (lines, *numLines, (char*) buf, numSymbols);
 
     return lines;
 }
 
-void setLines (char** lines, int numLines, char* text, int numSymbols) {               // Не настолько выше
+void setLines (char** lines, int numLines, char* text, int numSymbols) {               // Не настолько выше // what?..
     char* curr = text;
 
-    DEBUG printf ("text:\n<%s>\n", text);  А ДЕБАГ определи сам, __declspec (муааххаха)
-
     for (int i = 0; i < numLines; i++) {
-        THE_SAME printf ("loop %d.", i);
-
         assert (0 <= i && i < numLines);
         assert (text <= curr && curr < text + sizeof(char) * numSymbols);
 
@@ -86,31 +99,28 @@ void setLines (char** lines, int numLines, char* text, int numSymbols) {        
             while (*curr != '\n') {
                 assert (text <= curr && curr < text + sizeof(char) * numSymbols);
 
-                SEA_ABOVE printf ("               symbol<%c>, adr<%p>\n", *curr, curr); // Море выше!
-
                 curr++;
             }
 
-            curr = 0;  Чот падазрительна #doesnotwork #why #чотазабыл #олегмышь
+            *curr = 0;
             curr++;
         }
-
-        YOU_KNOW_IT printf ("line %d:<%s>\n", i, lines [i]);
     }
 }
 
 void* getBuf (long int * numSymbols, const char* fileName) {
     FILE* input = fopen (fileName, "r");
     if (!input)
-        throw std::runtime_error ("Couldn't open file"); ОК, но какой файл? #надобольшеинфы
+        throw std::runtime_error ("Could not open file"); // just wait for the next commit
 
     *numSymbols = getNumSymbols (input) + 1;
 
     void* buf = calloc (*numSymbols, sizeof(char));
-    memset (buf, 0, *numSymbols); Один раз каллок - не каллок?)
+    if (! buf)
+        throw std::runtime_error ("Failed to allocate memory"); // don't worry, I'll write all info. wait a minute
 
-    fread (buf, sizeof(char), *numSymbols, input); Я бы проверил ретёрн вэлюэ (омг, как это выглядит на русском транслите)
-    Я даже Ё поставил! #горжусь                                                
+    fread (buf, sizeof(char), *numSymbols, input);
+
     fclose (input);
 
     return buf;
