@@ -1,71 +1,151 @@
 #include <stdio.h>
-#include <vector>
-#include <string>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <exception>
 #include <stdexcept>
-#include <algorithm>
+#include <cstring>
+#include <assert.h>
 
-// A new name is required as I had to create a function [compare(const T&, const T&)]
-//   to use it in std::sort (Oh yea, i did it)
-typedef std::string* p_string;
-
-void getLines (std::vector<p_string> * destination, const char* fileName);
-void printLines (std::vector<p_string> * lines);
-void sortLines (std::vector<p_string> * lines);
-bool compareLines (const p_string & line1, const p_string & line2);
+void Main ();
+void deleteBuf (void* buf);
+void deleteLines (char** lines);
+char** getLines (int * numLines, void* * p_buf, const char* fileName);
+void setLines (char** lines, int numLines, char* text, int numSymbols);
+void* getBuf (long int * numSymbols, const char* fileName);
+int getNumLines (const char* text, int numSymbols);
+long int getNumSymbols (FILE* input);
 
 int main () {
-    // I decided not to discover a bicycle
-    //  so lines are stored as strings
-    //  (an array consists of pointers on string)
-    std::vector<p_string> lines;
-    getLines (&lines, "src\\OneginText.txt");
-
-    sortLines (&lines);
-
-    printLines (&lines);
+    try {
+        Main ();
+    }
+    catch (std::exception& e) {
+        printf ("Exception: %s\n", e.what());
+    }
 
     return 0;
 }
 
-void getLines (std::vector<p_string> * destination, const char* fileName) {
-    std::filebuf file;
+void Main () {
+    int numLines = 0;
+    void* buf = NULL;
+    char** lines = getLines (&numLines, &buf, "src\\OneginText.txt");
 
-    if (! file.open (fileName,std::ios::in) )
-        throw std::runtime_error ("Invalid FileName");
+    for (int i = 0; i < numLines; i++)
+        printf ("<%s>\n", lines [i]);
 
-    std::istream input(&file);
+    deleteBuf (buf);
+    deleteLines (lines);
+}
 
-    input.get(); // reading three first system symbols
-    input.get();
-    input.get();
+void deleteBuf (void* buf) {
+    // ? Maybe it's marasm ?
+    free (buf);
+}
 
-    while (input) {
-        destination->push_back ((p_string) new std::string);
-        std::getline (input, *(destination->back()));
+void deleteLines (char** lines) {
+    delete [] lines;
+}
+
+char** getLines (int * numLines, void* * p_buf, const char* fileName) {
+
+    long int numSymbols = 0;
+    void* buf = getBuf (&numSymbols, fileName);
+
+    *p_buf = buf;
+
+    *numLines = getNumLines ((char*) buf, numSymbols);
+
+    char** lines = (char**) new char* [*numLines];
+    memset (lines, 0, sizeof(char*) * *numLines);
+
+    setLines (lines, *numLines, (char*) buf, numSymbols);
+
+    return lines;
+}
+
+void setLines (char** lines, int numLines, char* text, int numSymbols) {
+    char* curr = text;
+
+    printf ("text:\n<%s>\n", text);
+
+    for (int i = 0; i < numLines; i++) {
+        printf ("loop %d.", i);
+
+        assert (0 <= i && i < numLines);
+        assert (text <= curr && curr < text + sizeof(char) * numSymbols);
+
+        lines [i] = curr;
+
+        if (i < numLines - 1) {
+            while (*curr != '\n') {
+                assert (text <= curr && curr < text + sizeof(char) * numSymbols);
+
+                printf ("               symbol<%c>, adr<%p>\n", *curr, curr);
+
+                curr++;
+            }
+
+            curr = 0;
+            curr++;
+        }
+
+        printf ("line %d:<%s>\n", i, lines [i]);
     }
-
-    destination->pop_back(); // deleting last line which is empty
-
-    file.close();
 }
 
-void printLines (std::vector<p_string> * lines) {
-    for(p_string line : *lines)
-        printf ("%s\n", line->c_str());
+void* getBuf (long int * numSymbols, const char* fileName) {
+    FILE* input = fopen (fileName, "r");
+    if (!input)
+        throw std::runtime_error ("Couldn't open file");
+
+    *numSymbols = getNumSymbols (input) + 1;
+
+    void* buf = calloc (*numSymbols, sizeof(char));
+    memset (buf, 0, *numSymbols);
+
+    fread (buf, sizeof(char), *numSymbols, input);
+
+    fclose (input);
+
+    return buf;
 }
 
-void sortLines (std::vector<p_string> * lines) {
-    // Oh my God! I'm /*cacashka*/ a busy student.
+int getNumLines (const char* text, int numSymbols) {
+    int numLines = 0;
 
-    std::sort (lines->begin(), lines->end(), compareLines);
+    for (int i = 0; i < numSymbols; i++)
+        if (text [i] == '\n')
+            numLines++;
+
+    numLines += 1; // Because last line doesn't end with '\n'
+
+    return numLines;
 }
 
-bool compareLines (const p_string & line1, const p_string & line2) {
-    // It is NOT yet alphabetical order:
-    //   for example, capitals go before literals.
+long int getNumSymbols (FILE* input) {
+    assert (input);
 
-    return (*line1) < (*line2);
+    long int curr_pos = ftell (input);
+
+    fseek (input, 0, SEEK_END);
+    long int numSymbols = ftell (input);
+
+    fseek (input, curr_pos, SEEK_SET);
+
+    return numSymbols;
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
