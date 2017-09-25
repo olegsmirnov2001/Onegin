@@ -7,6 +7,9 @@
 #include <cstring>
 #include <assert.h>
 
+#define do_debug true
+#include "lib/dump_macro.h"
+
 void Main ();
 void deleteBuf (void* & buf);
 void deleteLines (char** lines);
@@ -21,13 +24,18 @@ int main () {
     try {
         Main ();
     }
+    catch (const my_error& e) {
+        printf ("Exception <my_error>: %s---line.%d---%s\n"
+                "                      %s\n",
+                e.file(), e.line(), e.func(), e.what());
+    }
     catch (const std::exception& e) {
         printf ("Exception <std::exception>: %s\n", e.what());
     }
-    catch (const char* e) {
+    catch (const char*& e) {
         printf ("Exception <const char*>: %s\n", e);
     }
-    catch (const int e) {
+    catch (const int& e) {
         printf ("Exception <int>: %d\n", e);
     }
     catch (...) {
@@ -37,7 +45,7 @@ int main () {
     return 0;
 }
 
-void Main () {
+void Main () { DEBDUMP
     int numLines = 0;
     void* buf = NULL;
     char** lines = getLines (&numLines, &buf, "res\\OneginText.txt");
@@ -51,26 +59,30 @@ void Main () {
     deleteLines (lines);
 }
 
-void deleteBuf (void* & buf) {
+void deleteBuf (void* & buf) { DEBDUMP
+    assert (buf);
+
     free (buf);
     buf = NULL;
 }
 
-void deleteLines (char** lines) {
+void deleteLines (char** lines) { DEBDUMP
+    assert (lines);
+
     delete [] lines;
 }
 
 void printLines (char** lines, int numLines) {
-    printf ("======= LINES ========\n");
+    printf ("\n======= LINES ========\n");
 
     for (int i = 0; i < numLines; i++) {
         printf ("<%s>\n", lines [i]);
     }
 
-    printf ("======================\n");
+    printf ("======================\n\n");
 }
 
-char** getLines (int * numLines, void* * p_buf, const char* fileName) {
+char** getLines (int * numLines, void* * p_buf, const char* fileName) { DEBDUMP
 
     long int numSymbols = 0;
     void* buf = getBuf (&numSymbols, fileName);
@@ -86,8 +98,10 @@ char** getLines (int * numLines, void* * p_buf, const char* fileName) {
     return lines;
 }
 
-void setLines (char** lines, int numLines, char* text, int numSymbols) {               // Не настолько выше // what?..
+void setLines (char** lines, int numLines, char* text, int numSymbols) { DEBDUMP
     char* curr = text;
+
+    DEBUG printf ("text:\n<%s>\n", text);
 
     for (int i = 0; i < numLines; i++) {
         assert (0 <= i && i < numLines);
@@ -108,16 +122,16 @@ void setLines (char** lines, int numLines, char* text, int numSymbols) {        
     }
 }
 
-void* getBuf (long int * numSymbols, const char* fileName) {
+void* getBuf (long int * numSymbols, const char* fileName) { DEBDUMP
     FILE* input = fopen (fileName, "r");
     if (!input)
-        throw std::runtime_error ("Could not open file"); // just wait for the next commit
+        throw ERROR ("Could not open file <%s>", fileName);
 
     *numSymbols = getNumSymbols (input) + 1;
 
     void* buf = calloc (*numSymbols, sizeof(char));
     if (! buf)
-        throw std::runtime_error ("Failed to allocate memory"); // don't worry, I'll write all info. wait a minute
+        throw ERROR ("Failed to allocate memory");
 
     fread (buf, sizeof(char), *numSymbols, input);
 
@@ -126,7 +140,7 @@ void* getBuf (long int * numSymbols, const char* fileName) {
     return buf;
 }
 
-int getNumLines (const char* text, int numSymbols) {
+int getNumLines (const char* text, int numSymbols) { DEBDUMP
     int numLines = 0;
 
     for (int i = 0; i < numSymbols; i++)
@@ -138,7 +152,7 @@ int getNumLines (const char* text, int numSymbols) {
     return numLines;
 }
 
-long int getNumSymbols (FILE* input) {
+long int getNumSymbols (FILE* input) { DEBDUMP
     assert (input);
 
     long int curr_pos = ftell (input);

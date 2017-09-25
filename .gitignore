@@ -1,3 +1,7 @@
 #Executables
 *.exe
+#Folder <For me>
 /old_versions/*
+#Termorary CodeBlocks files
+*.cbTerm
+
