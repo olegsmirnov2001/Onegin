@@ -7,10 +7,12 @@
 #include <cstring>
 #include <assert.h>
 
-#define do_debug true
+#define do_debug false
 #include "lib/dump_macro.h"
 
 void Main ();
+void sortLines (char** lines, int numLines);
+int compareLines (const void* line1, const void* line2);
 void deleteBuf (void* & buf);
 void deleteLines (char** lines);
 void printLines (char** lines, int numLines);
@@ -50,13 +52,42 @@ void Main () { DEBDUMP
     void* buf = NULL;
     char** lines = getLines (&numLines, &buf, "res\\OneginText.txt");
 
-    //sortLines (lines, numLines); // What? Why the main part of the project is commented?
-                                   //"This is the question", as Shakespeare have written...
+    sortLines (lines, numLines);
 
     printLines (lines, numLines);
 
     deleteBuf (buf);
     deleteLines (lines);
+}
+
+void sortLines (char** lines, int numLines) {
+    qsort ((void*) lines, (size_t) numLines, sizeof(char*), compareLines);
+}
+
+int compareLines (const void* line1, const void* line2) {
+    if (line1 == line2)
+        return 0;
+
+    typedef char* p_char;
+
+    #define l1 *((const p_char*) line1)
+    #define l2 *((const p_char*) line2)
+
+    for (int i = 0; true; i++) {
+        if (l1[i] == 0)
+            return -1;
+        if (l2[i] == 0)
+            return 1;
+
+        // The comparison is not alphabetical yet
+        if (l1[i] < l2[i])
+            return -1;
+        if (l1[i] > l2[i])
+            return 1;
+    }
+
+    #undef l1
+    #undef l2
 }
 
 void deleteBuf (void* & buf) { DEBDUMP
