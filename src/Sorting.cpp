@@ -8,16 +8,19 @@
 #include <assert.h>
 
 #define do_debug false
+#define do_fully_debug false
 #include "lib/dump_macro.h"
 
 void Main ();
 void sortLines (char** lines, int numLines);
 int compareLines (const void* line1, const void* line2);
 void deleteBuf (void* & buf);
-void deleteLines (char** lines);
+void deleteLines (char** & lines);
 void printLines (char** lines, int numLines);
+void printLinesToFile (char** lines, int numLines, const char* fileName);
 char** getLines (int * numLines, void* * p_buf, const char* fileName);
 void setLines (char** lines, int numLines, char* text, int numSymbols);
+void cutSignature (char* & line);
 void* getBuf (long int * numSymbols, const char* fileName);
 int getNumLines (const char* text, int numSymbols);
 long int getNumSymbols (FILE* input);
@@ -54,36 +57,43 @@ void Main () { DEBDUMP
 
     sortLines (lines, numLines);
 
-    printLines (lines, numLines);
+    printLinesToFile (lines, numLines, "res\\SortedText.txt");
 
     deleteBuf (buf);
     deleteLines (lines);
 }
 
-void sortLines (char** lines, int numLines) {
+void sortLines (char** lines, int numLines) { DEBDUMP
     qsort ((void*) lines, (size_t) numLines, sizeof(char*), compareLines);
 }
 
-int compareLines (const void* line1, const void* line2) {
+int compareLines (const void* line1, const void* line2) { FULLY_DEBDUMP
     if (line1 == line2)
         return 0;
 
     typedef char* p_char;
 
-    #define l1 *((const p_char*) line1)
-    #define l2 *((const p_char*) line2)
+    // Long two hours spent to find an error...
+    #define l1 (*((const p_char*) line1))
+    #define l2 (*((const p_char*) line2))
+
+    FULLY_DEBUG printf ("   Comparing <%s> and <%s>\n", l1, l2);
 
     for (int i = 0; true; i++) {
-        if (l1[i] == 0)
+        if (l1[i] == 0) {
             return -1;
-        if (l2[i] == 0)
+        }
+        if (l2[i] == 0) {
             return 1;
+        }
 
-        // The comparison is not alphabetical yet
-        if (l1[i] < l2[i])
+        // The comparison is not alphabetical yet. :(
+        if (l1[i] < l2[i]) {
             return -1;
-        if (l1[i] > l2[i])
+        }
+        if (l1[i] > l2[i]) {
             return 1;
+        }
     }
 
     #undef l1
@@ -97,10 +107,13 @@ void deleteBuf (void* & buf) { DEBDUMP
     buf = NULL;
 }
 
-void deleteLines (char** lines) { DEBDUMP
+void deleteLines (char** & lines) { DEBDUMP
     assert (lines);
 
+    FULLY_DEBUG printf ("MEMORY::Deleting lines: <%p>\n", lines);
+
     delete [] lines;
+    lines = NULL;
 }
 
 void printLines (char** lines, int numLines) {
@@ -113,6 +126,18 @@ void printLines (char** lines, int numLines) {
     printf ("======================\n\n");
 }
 
+void printLinesToFile (char** lines, int numLines, const char* fileName) { DEBDUMP
+    FILE * dest = fopen (fileName, "w"); // destination
+    if (! dest)
+        throw ERROR ("Failed to create a file <%s>", fileName);
+
+    for (int i = 0; i < numLines; i++) {
+        fprintf (dest, "%s\n", lines [i]);
+    }
+
+    fclose (dest);
+}
+
 char** getLines (int * numLines, void* * p_buf, const char* fileName) { DEBDUMP
 
     long int numSymbols = 0;
@@ -123,6 +148,10 @@ char** getLines (int * numLines, void* * p_buf, const char* fileName) { DEBDUMP
     *numLines = getNumLines ((char*) buf, numSymbols);
 
     char** lines = (char**) new char* [*numLines] ();
+    if (! lines)
+        throw ERROR ("Failed to allocate memory");
+
+    FULLY_DEBUG printf ("MEMORY::Allocating lines: <%p>\n", lines);
 
     setLines (lines, *numLines, (char*) buf, numSymbols);
 
@@ -132,7 +161,7 @@ char** getLines (int * numLines, void* * p_buf, const char* fileName) { DEBDUMP
 void setLines (char** lines, int numLines, char* text, int numSymbols) { DEBDUMP
     char* curr = text;
 
-    DEBUG printf ("text:\n<%s>\n", text);
+    FULLY_DEBUG printf ("text:\n<%s>\n", text);
 
     for (int i = 0; i < numLines; i++) {
         assert (0 <= i && i < numLines);
@@ -150,6 +179,19 @@ void setLines (char** lines, int numLines, char* text, int numSymbols) { DEBDUMP
             *curr = 0;
             curr++;
         }
+    }
+
+    if (numLines > 0)
+        cutSignature (lines [0]);
+}
+
+void cutSignature (char* & line) { DEBDUMP
+    FULLY_DEBUG printf ("Line: <%s>\n", line);
+
+    if (line && (line[0] == -17 /*'0xEF'*/) && (line[1] == -69/*'0xBB'*/) && (line[2] == -65/*'0xBF'*/)) {
+        DEBUG printf ("Cut Signature. line: (%p,<%s>)->(%p,<%s>)\n", line, line, line + 3, line + 3);
+
+        line += 3;
     }
 }
 

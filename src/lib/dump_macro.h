@@ -5,13 +5,19 @@
 #if !defined do_debug
 #define do_debug false
 #endif
+#if !defined do_fully_debug
+#define do_fully_debug false
+#endif
 
 #define DEBUG if (do_debug)
+#define FULLY_DEBUG if (do_fully_debug)
 
 //TODO: dump to file also
+//TODO: printf with different COLORS
 #define DUMP printf ("--------------------%s---line.%-4d---%s\n", __FILE__, __LINE__, __FUNCTION__);
 
 #define DEBDUMP DEBUG DUMP
+#define FULLY_DEBDUMP FULLY_DEBUG DUMP
 
 #define ERROR( ... ) my_error (__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
 
