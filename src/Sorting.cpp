@@ -7,23 +7,25 @@
 #include <cstring>
 #include <assert.h>
 
-#define do_debug false
+#define do_debug true
 #define do_fully_debug false
 #include "lib/dump_macro.h"
 
 void Main ();
-void sortLines (char** lines, int numLines);
+char** getLines (const char* fileName);
+char* getBuf (const char* fileName);
+void seekIfSignature (FILE* file);
+long getNumSymbolsUntilEnd (FILE* input);
+void setLines (char** lines, size_t numLines, char* text);
+int getNumLines (const char* text);
+char* getBufAddr (char** lines);
+size_t lenLines (const char* const * lines);
+void sortLines (char** lines);
 int compareLines (const void* line1, const void* line2);
-void deleteBuf (void* & buf);
+void printLinesToFile (char** lines, const char* fileName);
+void printLinesToFile (char** lines, FILE* file);
+void deleteBuf (char* & buf);
 void deleteLines (char** & lines);
-void printLines (char** lines, int numLines);
-void printLinesToFile (char** lines, int numLines, const char* fileName);
-char** getLines (int * numLines, void* * p_buf, const char* fileName);
-void setLines (char** lines, int numLines, char* text, int numSymbols);
-void cutSignature (char* & line);
-void* getBuf (long int * numSymbols, const char* fileName);
-int getNumLines (const char* text, int numSymbols);
-long int getNumSymbols (FILE* input);
 
 int main () {
     try {
@@ -51,48 +53,165 @@ int main () {
 }
 
 void Main () { DEBDUMP
-    int numLines = 0;
-    void* buf = NULL;
-    char** lines = getLines (&numLines, &buf, "res\\OneginText.txt");
+    char** lines = getLines ("res\\OneginText.txt");
+    char* buf = getBufAddr (lines);
 
-    sortLines (lines, numLines);
+    sortLines (lines);
 
-    printLinesToFile (lines, numLines, "res\\SortedText.txt");
+    printLinesToFile (lines, "res\\SortedText.txt");
 
-    deleteBuf (buf);
     deleteLines (lines);
+    deleteBuf (buf);
 }
 
-void sortLines (char** lines, int numLines) { DEBDUMP
-    qsort ((void*) lines, (size_t) numLines, sizeof(char*), compareLines);
+char** getLines (const char* fileName) { DEBDUMP
+    assert (fileName);
+
+    char* buf = getBuf (fileName);
+
+    size_t numLines = getNumLines (buf);
+    char** lines = new (std::nothrow) char* [numLines + 1] ();
+    if (! lines)
+        throw ERROR ("Failed to allocate memory");
+
+    FULLY_DEBUG printf ("MEMORY::Allocating lines: <%p>\n", lines);
+
+    setLines (lines, numLines, buf);
+
+    return lines;
+}
+
+char* getBuf (const char* fileName) { DEBDUMP
+    assert (fileName);
+
+    FILE * input = fopen (fileName, "r");
+    if (!input)
+        throw ERROR ("Could not open file <%s>", fileName);
+
+    seekIfSignature (input);
+
+    long numSymbols = getNumSymbolsUntilEnd (input);
+
+    char* buf = new (std::nothrow) char [numSymbols + 1] ();
+    if (! buf)
+        throw ERROR ("Failed to allocate memory");
+
+    fread (buf, sizeof(*buf), numSymbols, input);
+
+    FULLY_DEBUG printf ("Buf:\n<%s>\n", buf);
+
+    fclose (input);
+
+    return buf;
+}
+
+void seekIfSignature (FILE* file) { DEBDUMP
+    assert (file);
+
+    assert (ftell (file) == 0);
+
+    if ((fgetc (file) == 239 /*'0xEF'*/) && (fgetc (file) == 187 /*'0xBB'*/) && (fgetc (file) == 191 /*'0xBF'*/)) {
+        DEBUG printf ("Detected Signature\n");
+    }
+    else {
+        DEBUG printf ("Didn't detect signature\n");
+        fseek (file, 0, SEEK_SET);
+    }
+}
+
+long getNumSymbolsUntilEnd (FILE* input) { DEBDUMP
+    assert (input);
+
+    long curr_pos = ftell (input);
+
+    fseek (input, 0, SEEK_END);
+    long numSymbols = ftell (input) - curr_pos;
+
+    fseek (input, curr_pos, SEEK_SET);
+
+    FULLY_DEBUG printf ("   numSymbols %ld\n   curr_pos %ld\n", numSymbols, curr_pos);
+
+    return numSymbols;
+}
+
+void setLines (char** lines, size_t numLines, char* buf) { DEBDUMP
+    assert (lines);
+    assert (buf);
+
+    FULLY_DEBUG printf ("Buf:\n<%s>\nstrlen: <%I64u>\n", buf, strlen (buf));
+
+    char* curr = buf;
+    for (int i = 0; curr; i++) {
+        FULLY_DEBUG printf ("   Loop %3d. (%p,%p)", i, buf, curr);
+
+        // The only place where 'numLines' is used is assert, hmmm...
+        assert (0 <= i && i < (int) numLines);
+
+        lines [i] = curr;
+
+        curr = strchr (curr, '\n');
+        if (curr) {
+            *curr = 0;
+            curr++;
+        }
+
+        FULLY_DEBUG printf ("   Lines[%3d]=<%s>\n", i, lines [i]);
+    }
+}
+
+int getNumLines (const char* text) { DEBDUMP
+    int numLines = 0;
+
+    for (char* curr = strchr (text, '\n'); curr; curr = strchr (curr + 1, '\n'))
+        numLines++;
+
+    numLines += 1; // Because last line doesn't end with '\n'
+
+    return numLines;
+}
+
+char* getBufAddr (char** lines) { DEBDUMP
+    assert (lines);
+    assert (lines [0]);
+
+    return lines [0];
+}
+
+size_t lenLines (const char* const * lines) { DEBDUMP
+    for (size_t i = 0; true; i++) {
+        if (lines [i] == nullptr)
+            return i;
+    }
+}
+
+void sortLines (char** lines) { DEBDUMP
+    qsort ((void*) lines, lenLines (lines), sizeof(*lines), compareLines);
 }
 
 int compareLines (const void* line1, const void* line2) { FULLY_DEBDUMP
     if (line1 == line2)
         return 0;
 
-    typedef char* p_char;
+    typedef const char* p_char;
 
     // Long two hours spent to find an error...
-    #define l1 (*((const p_char*) line1))
-    #define l2 (*((const p_char*) line2))
+    #define l1 (*(const p_char*) line1)
+    #define l2 (*(const p_char*) line2)
 
     FULLY_DEBUG printf ("   Comparing <%s> and <%s>\n", l1, l2);
 
     for (int i = 0; true; i++) {
+        /*
         if (l1[i] == 0) {
             return -1;
         }
         if (l2[i] == 0) {
             return 1;
         }
-
+        */
         // The comparison is not alphabetical yet. :(
-        if (l1[i] < l2[i]) {
-            return -1;
-        }
-        if (l1[i] > l2[i]) {
-            return 1;
+        if (l1[i] != l2[i] || l1[i] == 0 || l2[i] == 0) {
+            return ((unsigned char) l1[i] - (unsigned char) l2[i]);
         }
     }
 
@@ -100,10 +219,31 @@ int compareLines (const void* line1, const void* line2) { FULLY_DEBDUMP
     #undef l2
 }
 
-void deleteBuf (void* & buf) { DEBDUMP
+void printLinesToFile (char** lines, const char* fileName) { DEBDUMP
+    assert (fileName);
+
+    FILE * dest = fopen (fileName, "w"); // destination
+    if (! dest)
+        throw ERROR ("Failed to create a file <%s>", fileName);
+
+    printLinesToFile (lines, dest);
+
+    fclose (dest);
+}
+
+void printLinesToFile (char** lines, FILE* file) { DEBDUMP
+    assert (lines);
+    assert (file);
+
+    for (char** line = lines; *line; line++) {
+        fprintf (file, "%s\n", *line);
+    }
+}
+
+void deleteBuf (char* & buf) { DEBDUMP
     assert (buf);
 
-    free (buf);
+    delete [] buf;
     buf = NULL;
 }
 
@@ -115,129 +255,6 @@ void deleteLines (char** & lines) { DEBDUMP
     delete [] lines;
     lines = NULL;
 }
-
-void printLines (char** lines, int numLines) {
-    printf ("\n======= LINES ========\n");
-
-    for (int i = 0; i < numLines; i++) {
-        printf ("<%s>\n", lines [i]);
-    }
-
-    printf ("======================\n\n");
-}
-
-void printLinesToFile (char** lines, int numLines, const char* fileName) { DEBDUMP
-    FILE * dest = fopen (fileName, "w"); // destination
-    if (! dest)
-        throw ERROR ("Failed to create a file <%s>", fileName);
-
-    for (int i = 0; i < numLines; i++) {
-        fprintf (dest, "%s\n", lines [i]);
-    }
-
-    fclose (dest);
-}
-
-char** getLines (int * numLines, void* * p_buf, const char* fileName) { DEBDUMP
-
-    long int numSymbols = 0;
-    void* buf = getBuf (&numSymbols, fileName);
-
-    *p_buf = buf;
-
-    *numLines = getNumLines ((char*) buf, numSymbols);
-
-    char** lines = (char**) new char* [*numLines] ();
-    if (! lines)
-        throw ERROR ("Failed to allocate memory");
-
-    FULLY_DEBUG printf ("MEMORY::Allocating lines: <%p>\n", lines);
-
-    setLines (lines, *numLines, (char*) buf, numSymbols);
-
-    return lines;
-}
-
-void setLines (char** lines, int numLines, char* text, int numSymbols) { DEBDUMP
-    char* curr = text;
-
-    FULLY_DEBUG printf ("text:\n<%s>\n", text);
-
-    for (int i = 0; i < numLines; i++) {
-        assert (0 <= i && i < numLines);
-        assert (text <= curr && curr < text + sizeof(char) * numSymbols);
-
-        lines [i] = curr;
-
-        if (i < numLines - 1) {
-            while (*curr != '\n') {
-                assert (text <= curr && curr < text + sizeof(char) * numSymbols);
-
-                curr++;
-            }
-
-            *curr = 0;
-            curr++;
-        }
-    }
-
-    if (numLines > 0)
-        cutSignature (lines [0]);
-}
-
-void cutSignature (char* & line) { DEBDUMP
-    FULLY_DEBUG printf ("Line: <%s>\n", line);
-
-    if (line && (line[0] == -17 /*'0xEF'*/) && (line[1] == -69/*'0xBB'*/) && (line[2] == -65/*'0xBF'*/)) {
-        DEBUG printf ("Cut Signature. line: (%p,<%s>)->(%p,<%s>)\n", line, line, line + 3, line + 3);
-
-        line += 3;
-    }
-}
-
-void* getBuf (long int * numSymbols, const char* fileName) { DEBDUMP
-    FILE* input = fopen (fileName, "r");
-    if (!input)
-        throw ERROR ("Could not open file <%s>", fileName);
-
-    *numSymbols = getNumSymbols (input) + 1;
-
-    void* buf = calloc (*numSymbols, sizeof(char));
-    if (! buf)
-        throw ERROR ("Failed to allocate memory");
-
-    fread (buf, sizeof(char), *numSymbols, input);
-
-    fclose (input);
-
-    return buf;
-}
-
-int getNumLines (const char* text, int numSymbols) { DEBDUMP
-    int numLines = 0;
-
-    for (int i = 0; i < numSymbols; i++)
-        if (text [i] == '\n')
-            numLines++;
-
-    numLines += 1; // Because last line doesn't end with '\n'
-
-    return numLines;
-}
-
-long int getNumSymbols (FILE* input) { DEBDUMP
-    assert (input);
-
-    long int curr_pos = ftell (input);
-
-    fseek (input, 0, SEEK_END);
-    long int numSymbols = ftell (input);
-
-    fseek (input, curr_pos, SEEK_SET);
-
-    return numSymbols;
-}
-
 
 
 

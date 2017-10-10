@@ -14,12 +14,18 @@
 
 //TODO: dump to file also
 //TODO: printf with different COLORS
-#define DUMP printf ("--------------------%s---line.%-4d---%s\n", __FILE__, __LINE__, __FUNCTION__);
+#define DUMP printf ("--------------------%s---line.%-4d---%s\n", __FILE__, __LINE__, __PRETTY_FUNCTION__);
+
+// levels of dump (+= into file) /* DEBUG(1) */
+// global param - for local fully_debug
 
 #define DEBDUMP DEBUG DUMP
 #define FULLY_DEBDUMP FULLY_DEBUG DUMP
 
-#define ERROR( ... ) my_error (__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
+#define ERROR( ... ) my_error (__FILE__, __LINE__, __PRETTY_FUNCTION__, __VA_ARGS__)
+
+// += verifiers and dumpers
+// my own assert
 
 /** An exception class
  *
@@ -45,7 +51,8 @@ class my_error {
 
     public:
 
-    #define BufSize 256
+    static const int BufSize = 256;
+
     my_error (const char* the_file_,
               const int   the_line_,
               const char* the_func_,
@@ -62,11 +69,10 @@ class my_error {
         va_end (arg);
 
         if (sz + 1 < BufSize) {
-            msg_ = (char*) realloc (msg_, sz + 1);
+            msg_ = (char*) realloc (msg_, sz + 1); // Memory fragmenting... Think of
             CheckIfNonZero (msg_);
         }
     }
-    #undef BufSize
 
     private:
 
@@ -77,11 +83,9 @@ class my_error {
     char* createLine (const char* str, const char* strDefault) {
         assert (strDefault);
 
-        char* dest = /*(char*)*/ new char [strlen (str ? str : strDefault) + 1] ();
+        char* dest = strdup (str ? str : strDefault); // strdup
 
         CheckIfNonZero (dest);
-
-        strcpy (dest, str ? str : strDefault);
 
         return dest;
     }
@@ -98,8 +102,13 @@ class my_error {
 
     ~my_error() {
         delete [] file_;
+        file_ = nullptr;
+
         delete [] func_;
+        func_ = nullptr;
+
         delete [] msg_;
+        msg_ = nullptr;
     }
 
     /**
